@@ -89,6 +89,7 @@
 #define UBX_ID_NAV_SVIN       0x3B
 #define UBX_ID_NAV_RELPOSNED  0x3C
 #define UBX_ID_RXM_SFRBX      0x13
+#define UBX_ID_RXM_MEASX      0x14
 #define UBX_ID_RXM_RAWX       0x15
 #define UBX_ID_RXM_RTCM       0x32
 #define UBX_ID_INF_DEBUG      0x04
@@ -144,6 +145,7 @@
 #define UBX_MSG_NAV_SVIN      ((UBX_CLASS_NAV) | UBX_ID_NAV_SVIN << 8)
 #define UBX_MSG_NAV_RELPOSNED ((UBX_CLASS_NAV) | UBX_ID_NAV_RELPOSNED << 8)
 #define UBX_MSG_RXM_SFRBX     ((UBX_CLASS_RXM) | UBX_ID_RXM_SFRBX << 8)
+#define UBX_MSG_RXM_MEASX     ((UBX_CLASS_RXM) | UBX_ID_RXM_MEASX << 8)
 #define UBX_MSG_RXM_RAWX      ((UBX_CLASS_RXM) | UBX_ID_RXM_RAWX << 8)
 #define UBX_MSG_RXM_RTCM      ((UBX_CLASS_RXM) | UBX_ID_RXM_RTCM << 8)
 #define UBX_MSG_INF_DEBUG     ((UBX_CLASS_INF) | UBX_ID_INF_DEBUG << 8)
@@ -222,7 +224,7 @@
 #define UBX_TX_CFG_PRT_PROTO_UBX                (1<<0)
 #define UBX_TX_CFG_PRT_PROTO_RTCM               (1<<5)
 
-#define UBX_BAUDRATE_M8_AND_NEWER               115200 /**< baudrate for M8+ boards */
+#define UBX_BAUDRATE_M8_AND_NEWER               460800 /**< baudrate for M8+ boards */
 
 /* TX CFG-RATE message contents
  * Note: not used with protocol version 27+ anymore
@@ -363,6 +365,8 @@
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C     0x20910231
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_RAWX_I2C      0x209102a4
 #define UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C      0x20910268
+#define UBX_CFG_KEY_MSGOUT_UBX_RXM_MEASX_I2C     0x20910204
+#define UBX_CFG_KEY_MSGOUT_UBX_RXM_MEASX_UART1   0x20910205
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1005_I2C  0x209102bd
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1077_I2C  0x209102cc
 #define UBX_CFG_KEY_MSGOUT_RTCM_3X_TYPE1087_I2C  0x209102d1
@@ -444,6 +448,60 @@ typedef struct {
 	uint8_t ck_a;
 	uint8_t ck_b;
 } ubx_checksum_t ;
+
+
+/* Rx RXM-MEASX Part 1 */
+// U1: unsigned 8bit integer
+// I1: signed 8bit integer, two's complement
+// U2: unsigned little-endian 16bit integer
+// I2: signed little-endian 16bit integer, two's complement
+// U4: unsigned little-endian 32bit integer
+// I4: signed little-endian 32bit integer, two's complement
+typedef struct {
+	// (U1) version,
+	uint8_t version; 	/**< Message version, currently 0x01 */
+	// U1[3] reserved0
+	uint8_t reserved0[3];
+	// (U4) gpsTOW, gloTOW, bdsTOW, qzssTOW,
+	uint32_t gpsTOW; 	/**< GPS measurement reference time */
+	uint32_t gloTOW; 	/**< GLONASS measurement reference time */
+	uint32_t bdsTOW; 	/**< BeiDou measurement reference time */
+	// U1[4] reserved1
+	uint8_t reserved1[4];
+	uint32_t qzssTOW; 	/**< QZSS measurement reference time */
+	// (U2) gpsTOWacc, gloTOWacc, bdsTOWacc, qzssTOWacc,
+	uint16_t gpsTOWacc; 	/**< GPS measurement reference time accuracy (0xffff => 4s) */
+	uint16_t gloTOWacc; 	/**< GLONASS measurement reference time accuracy (0xffff => 4s) */
+	uint16_t bdsTOWacc; 	/**< BeiDou measurement reference time accuracy (0xffff => 4s) */
+	uint8_t reserved2[2];
+	uint16_t qzssTOWacc; 	/**< QZSS measurement reference time accuracy (0xffff => 4s) */
+	// (U1) numSV, flags
+	uint8_t numSV;    	/**< Number of Satellites in repeated block */
+	uint8_t flags;   	/**< Flags, TOW set (0 = no, 1 or 2 = yes) */
+	uint8_t reserved3[8];
+} ubx_payload_rx_rxm_measx_part1_t;
+
+/* Rx RXM-MEASX Part 2 (repeated) */
+typedef struct {
+	// (U1) gnssId, svId, cNo, mpathIndic
+	uint8_t gnssId;      /**< GNSS ID */
+	uint8_t svId;        /**< Satellite ID */
+	uint8_t cNo;         /**< Carrier to Noise Ratio (C/N0) (0..63 dB-Hz?) */
+	uint8_t mpathIndic;  /**< Multipath indicator (0 = not measured, 1 = low, 2 = medium, 3 = high) */
+	// (I4) dopplerMS, dopplerHz
+	int32_t dopplerMS;   /**< Doppler measurement, *0.04 m/s */
+	int32_t dopplerHz;   /**< Doppler measurement, *0.2 Hz */
+	// (U2) wholeChips, fracChips
+	uint16_t wholeChips; /**< whole value of the code phase measurement (0..1022 for GPS) */
+	uint16_t fracChips;  /**< fractional part of the code phase measurement (0..1023) */
+	// (U4) codePhase
+	uint32_t codePhase;  /**< Code phase, *2^-21 ms */
+	// (U1) intCodePhase, pseuRangeRMSErr
+	uint8_t intCodePhase;/**< Integer (part of the) code phase */
+	uint8_t pseuRangeRMSErr; /**< Pseudorange measurement error RMS index (0..63) */
+	uint8_t reserved4[2];
+} ubx_payload_rx_rxm_measx_part2_t;
+
 
 /* Rx NAV-POSLLH */
 typedef struct {
@@ -919,6 +977,8 @@ typedef union {
 	ubx_payload_rx_mon_ver_part1_t    payload_rx_mon_ver_part1;
 	ubx_payload_rx_mon_ver_part2_t    payload_rx_mon_ver_part2;
 	ubx_payload_rx_rxm_rtcm_t         payload_rx_rxm_rtcm;
+	ubx_payload_rx_rxm_measx_part1_t  payload_rx_rxm_measx_part1;
+	ubx_payload_rx_rxm_measx_part2_t  payload_rx_rxm_measx_part2;
 	ubx_payload_rx_ack_ack_t          payload_rx_ack_ack;
 	ubx_payload_rx_ack_nak_t          payload_rx_ack_nak;
 	ubx_payload_tx_cfg_prt_t          payload_tx_cfg_prt;
@@ -982,6 +1042,7 @@ public:
 
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 		     sensor_gps_s *gps_position, satellite_info_s *satellite_info,
+		     gnss_raw_measx_s *gnss_raw_measx,
 		     uint8_t dynamic_model = 7,
 		     float heading_offset = 0.f,
 		     int32_t uart2_baudrate = 57600,
@@ -1120,6 +1181,7 @@ private:
 	int payloadRxAddMonVer(const uint8_t b);
 	int payloadRxAddNavSat(const uint8_t b);
 	int payloadRxAddNavSvinfo(const uint8_t b);
+	int payloadRxAddRxmMeasx(const uint8_t b);
 
 	/**
 	 * Finish payload rx
@@ -1142,6 +1204,7 @@ private:
 	gps_abstime             _disable_cmd_last{0};
 	sensor_gps_s           *_gps_position {nullptr};
 	satellite_info_s       *_satellite_info {nullptr};
+	gnss_raw_measx_s       *_gnss_raw_measx {nullptr};
 	ubx_ack_state_t         _ack_state{UBX_ACK_IDLE};
 	ubx_buf_t               _buf{};
 	ubx_decode_state_t      _decode_state{};

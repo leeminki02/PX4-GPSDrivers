@@ -502,6 +502,19 @@ typedef struct {
 	uint8_t reserved4[2];
 } ubx_payload_rx_rxm_measx_part2_t;
 
+/* Rx RXM-SFRBX */
+typedef struct {
+	// gnssId, svId, sigId, freqId, numWords, chn, version, reserved0, dwrds
+	uint8_t gnssId;      /**< GNSS ID */
+	uint8_t svId;        /**< Satellite ID */
+	uint8_t sigId;       /**< Signal ID */
+	uint8_t freqId;      /**< Frequency ID (GLONASS only) */
+	uint8_t numWords;    /**< Number of 32-bit words to follow */
+	uint8_t chn;         /**< Receiver channel used for measurement */
+	uint8_t version;     /**< Message version, currently 0x01 */
+	uint8_t reserved0;   /**< Reserved */
+	uint32_t dwrd[10];   /**< 10 32-bit words with signal bit information */
+} ubx_payload_rx_rxm_sfrbx_t;
 
 /* Rx NAV-POSLLH */
 typedef struct {
@@ -979,6 +992,7 @@ typedef union {
 	ubx_payload_rx_rxm_rtcm_t         payload_rx_rxm_rtcm;
 	ubx_payload_rx_rxm_measx_part1_t  payload_rx_rxm_measx_part1;
 	ubx_payload_rx_rxm_measx_part2_t  payload_rx_rxm_measx_part2;
+	ubx_payload_rx_rxm_sfrbx_t        payload_rx_rxm_sfrbx;
 	ubx_payload_rx_ack_ack_t          payload_rx_ack_ack;
 	ubx_payload_rx_ack_nak_t          payload_rx_ack_nak;
 	ubx_payload_tx_cfg_prt_t          payload_tx_cfg_prt;
@@ -1042,6 +1056,7 @@ public:
 
 	GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 		     sensor_gps_s *gps_position, satellite_info_s *satellite_info,
+			 gnss_ephemeris_s *gnss_ephemeris,
 		     gnss_raw_measx_s *gnss_raw_measx,
 		     uint8_t dynamic_model = 7,
 		     float heading_offset = 0.f,
@@ -1204,6 +1219,7 @@ private:
 	gps_abstime             _disable_cmd_last{0};
 	sensor_gps_s           *_gps_position {nullptr};
 	satellite_info_s       *_satellite_info {nullptr};
+	gnss_ephemeris_s       *_gnss_ephemeris {nullptr};
 	gnss_raw_measx_s       *_gnss_raw_measx {nullptr};
 	ubx_ack_state_t         _ack_state{UBX_ACK_IDLE};
 	ubx_buf_t               _buf{};

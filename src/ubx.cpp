@@ -69,6 +69,7 @@
 
 GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void *callback_user,
 			   sensor_gps_s *gps_position, satellite_info_s *satellite_info,
+			   gnss_ephemeris_s *gnss_ephemeris,
 			   gnss_raw_measx_s *gnss_raw_measx,
 			   uint8_t dynamic_model,
 			   float heading_offset, int32_t uart2_baudrate, UBXMode mode) :
@@ -76,6 +77,7 @@ GPSDriverUBX::GPSDriverUBX(Interface gpsInterface, GPSCallbackPtr callback, void
 	_interface(gpsInterface),
 	_gps_position(gps_position),
 	_satellite_info(satellite_info),
+	_gnss_ephemeris(gnss_ephemeris),
 	_gnss_raw_measx(gnss_raw_measx),
 	_dyn_model(dynamic_model),
 	_mode(mode),
@@ -691,6 +693,7 @@ int GPSDriverUBX::configureDevice(const GPSConfig &config, const int32_t uart2_b
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_MON_RF_I2C, 1, cfg_valset_msg_size);
 	PX4_INFO("Sending RXM-MEASX config to UART1...");
 	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_MEASX_I2C, 1, cfg_valset_msg_size);
+	cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_SFRBX_I2C, 1, cfg_valset_msg_size);
 
 	if ((_board == Board::u_blox9) || (_board == Board::u_blox9_F9P)) {
 		cfgValsetPort(UBX_CFG_KEY_MSGOUT_UBX_RXM_RTCM_I2C, 1, cfg_valset_msg_size);
@@ -1219,7 +1222,7 @@ GPSDriverUBX::parseChar(const uint8_t b)
 
 		case UBX_MSG_RXM_MEASX:
 			ret = payloadRxAddRxmMeasx(b);	// add a RXM-MEASX payload byte
-			// TOOD: this ret should be coded as 4
+			// this ret should be coded as 4
 			break;
 
 		default:
@@ -1477,6 +1480,20 @@ GPSDriverUBX::payloadRxInit()
 		}
 
 		break;
+		
+	case UBX_MSG_RXM_SFRBX:
+		if (_gnss_ephemeris == nullptr) {
+			_rx_state = UBX_RXMSG_DISABLE;        // disable if sat info not requested
+
+		} else if (!_configured) {
+			_rx_state = UBX_RXMSG_IGNORE;        // ignore if not _configured
+
+		} else {
+			memset(_gnss_ephemeris, 0, sizeof(*_gnss_ephemeris));        // initialize sat info
+		}
+
+		break;
+		
 
 	case UBX_MSG_RXM_RTCM:
 		if (_rx_payload_length < sizeof(ubx_payload_rx_rxm_rtcm_t)) {
@@ -2385,6 +2402,27 @@ GPSDriverUBX::payloadRxDone()
 		_gnss_raw_measx->timestamp = gps_absolute_time();
 
 		ret = 4; // return code for measx is 4.
+		break;
+	
+	case UBX_MSG_RXM_SFRBX:
+		UBX_TRACE_RXMSG("Rx RXM-SFRBX");
+		_gnss_ephemeris->timestamp 		= gps_absolute_time();
+		_gnss_ephemeris->gnssid 		= _buf.payload_rx_rxm_sfrbx.gnssId;
+		_gnss_ephemeris->svid 			= _buf.payload_rx_rxm_sfrbx.svId;
+		_gnss_ephemeris->sigid 			= _buf.payload_rx_rxm_sfrbx.sigId;
+		_gnss_ephemeris->freqid 		= _buf.payload_rx_rxm_sfrbx.freqId;
+
+		_gnss_ephemeris->numwords 		= MIN(_buf.payload_rx_rxm_sfrbx.numWords, gnss_ephemeris_s::GNSS_EPHEMERIS_MAX_WORDS);
+		_gnss_ephemeris->chn      		= _buf.payload_rx_rxm_sfrbx.chn;
+		_gnss_ephemeris->version      	= _buf.payload_rx_rxm_sfrbx.version;
+		_gnss_ephemeris->reserved0      = _buf.payload_rx_rxm_sfrbx.reserved0;
+
+		memset(_gnss_ephemeris->dwrd, 0, sizeof(_gnss_ephemeris->dwrd));
+		for (int i = 0; i < _gnss_ephemeris->numwords; i++) {
+			_gnss_ephemeris->dwrd[i] = _buf.payload_rx_rxm_sfrbx.dwrd[i];
+		}
+
+		ret = 5;
 		break;
 
 	case UBX_MSG_ACK_ACK:

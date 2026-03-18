@@ -2412,7 +2412,7 @@ GPSDriverUBX::payloadRxDone()
 		_gnss_ephemeris->sigid 			= _buf.payload_rx_rxm_sfrbx.sigId;
 		_gnss_ephemeris->freqid 		= _buf.payload_rx_rxm_sfrbx.freqId;
 
-		_gnss_ephemeris->numwords 		= MIN(_buf.payload_rx_rxm_sfrbx.numWords, gnss_ephemeris_s::GNSS_EPHEMERIS_MAX_WORDS);
+		_gnss_ephemeris->numwords 		= MIN(_buf.payload_rx_rxm_sfrbx.numWords, gnss_ephemeris_s::GNSS_SFRBX_MAX_WORDS);
 		_gnss_ephemeris->chn      		= _buf.payload_rx_rxm_sfrbx.chn;
 		_gnss_ephemeris->version      	= _buf.payload_rx_rxm_sfrbx.version;
 		_gnss_ephemeris->reserved0      = _buf.payload_rx_rxm_sfrbx.reserved0;

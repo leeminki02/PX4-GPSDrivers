@@ -2652,7 +2652,7 @@ GPSDriverUBX::payloadRxDone()
 			_gnss_ephemeris->dwrd[i] = _buf.payload_rx_rxm_sfrbx.dwrd[i];
 		}
 
-		ret = 5;
+		ret = 8;
 		break;
 
 	case UBX_MSG_ACK_ACK:
